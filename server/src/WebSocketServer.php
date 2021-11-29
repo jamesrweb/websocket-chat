@@ -26,11 +26,12 @@ class WebSocketServer
         return $this;
     }
 
-    public function start(): self {
+    public function start(): self
+    {
         if (is_null($this->io_server)) {
             throw new Exception(get_class($this) . ': Server is not initialised yet.');
         }
-        
+
 
         echo 'Listening for requests at ' . $this->io_server->socket->getAddress();
         $this->io_server->run();
