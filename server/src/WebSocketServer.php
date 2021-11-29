@@ -4,28 +4,37 @@ declare(strict_types=1);
 
 namespace WebSocketChat\Server;
 
-use React\EventLoop\LoopInterface;
-use React\Socket\ConnectionInterface;
-use React\Socket\SocketServer;
+use Exception;
+use Ratchet\Http\HttpServer;
+use Ratchet\Server\IoServer;
+use Ratchet\WebSocket\WsServer;
 
 class WebSocketServer
 {
-    private int $port;
-    private LoopInterface $event_loop;
-    private ConnectionPool $connection_pool;
+    private ?IoServer $io_server = null;
 
-    public function __construct(int $port, LoopInterface $event_loop)
+    public function initialise(int $port): self
     {
-        $this->port = $port;
-        $this->event_loop = $event_loop;
-        $this->connection_pool = new ConnectionPool();
+        if (is_null($this->io_server)) {
+            $connection_pool = new ConnectionPool();
+            $web_socket_server = new WsServer($connection_pool);
+            $http_server = new HttpServer($web_socket_server);
+
+            $this->io_server = IoServer::factory($http_server, $port);
+        }
+
+        return $this;
     }
 
-    public function run(): void
-    {
-        $socket_server = new SocketServer("127.0.0.1:$this->port", [], $this->event_loop);
-        $socket_server->on('connection', function (ConnectionInterface $connection) {
-            $this->connection_pool->addConnection($connection);
-        });
+    public function start(): self {
+        if (is_null($this->io_server)) {
+            throw new Exception(get_class($this) . ': Server is not initialised yet.');
+        }
+        
+
+        echo 'Listening for requests at ' . $this->io_server->socket->getAddress();
+        $this->io_server->run();
+
+        return $this;
     }
 }

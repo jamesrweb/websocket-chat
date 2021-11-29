@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace WebSocketChat\Server;
 
 use Ds\Map;
-use React\Socket\ConnectionInterface;
+use Ratchet\MessageComponentInterface;
+use Ratchet\ConnectionInterface;
 
-class ConnectionPool
+class ConnectionPool implements MessageComponentInterface
 {
     private Map $connections;
 
@@ -16,70 +17,38 @@ class ConnectionPool
         $this->connections = new Map();
     }
 
-    public function addConnection(ConnectionInterface $connection): void
+    public function onOpen(ConnectionInterface $connection): void
     {
-        $connection->write('Enter your name: ');
-        $this->initEvents($connection);
-        $this->setConnectionData($connection, []);
+        $this->connections->put($connection->resourceId, $connection);
     }
 
-    private function initEvents(ConnectionInterface $connection): void
+    public function onMessage(ConnectionInterface $from, mixed $msg): void
     {
-        $connection->on('data', fn (mixed $data) => $this->connectionHandler($connection, $data));
-        $connection->on('close', fn () => $this->closeHandler($connection));
+        foreach ($this->connections as $connection) {
+            if ($from->resourceId === $connection->resourceId) {
+                continue;
+            }
+
+            $this->emit("Client $from->resourceId said $msg", $connection);
+        }
     }
 
-    private function connectionHandler(ConnectionInterface $connection, mixed $data): void
+    public function onClose(ConnectionInterface $connection): void
     {
-        $connectionData = $this->getConnectionData($connection);
-
-        if (is_null($connectionData)) {
-            $this->addNewMember($data, $connection);
+        if (!$this->connections->hasKey($connection)) {
             return;
         }
 
-        $name = $connectionData['name'];
-        $this->emit("$name: $data", $connection);
-    }
-
-    private function closeHandler(ConnectionInterface $connection): void
-    {
-        $data = $this->getConnectionData($connection);
-        $name = $data['name'] ?? 'unknown-user';
-
         $this->connections->remove($connection);
-        $this->emit("User $name leaves the chat", $connection);
     }
 
-    private function addNewMember(string $name, ConnectionInterface $connection): void
+    public function onError(ConnectionInterface $connection, \Exception $e): void
     {
-        $name = str_replace(["\n", "\r"], '', $name);
-        $this->setConnectionData($connection, ['name' => $name]);
-        $this->emit("User $name joins the chat", $connection);
+        $this->emit('Error: ' . $e->getMessage(), $connection);
     }
 
-    /**
-     * @param array<string, mixed>  $data
-     */
-    private function setConnectionData(ConnectionInterface $connection, array $data): void
+    private function emit(mixed $data, ConnectionInterface $connection): void
     {
-        $this->connections->put($connection, $data);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function getConnectionData(ConnectionInterface $connection): ?array
-    {
-        return $this->connections->get($connection);
-    }
-
-    private function emit(mixed $data, ConnectionInterface $current_active_connection): void
-    {
-        foreach ($this->connections as $connection) {
-            if ($connection !== $current_active_connection) {
-                $connection->write($data . PHP_EOL);
-            }
-        }
+        $connection->send($data . PHP_EOL);
     }
 }
