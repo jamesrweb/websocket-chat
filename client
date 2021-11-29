@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <form id="form">
+        <fieldset>
+            <legend>Write a message</legend>
+            <input type="text" id="message" />
+            <button type="submit" id="submit">Send message</button>
+        </fieldset>
+    </form>
+
+    <ul id="messages"></ul>
+
+    <script>
+        const form = document.getElementById("form");
+        const messageInput = document.getElementById("message");
+        const submitButton = document.getElementById("submit");
+        const messages = document.getElementById("messages");
+        const ws = new WebSocket("ws://localhost:8080");
+
+        form.addEventListener("submit", event => {
+            event.preventDefault();
+
+            ws.send(messageInput.value);
+        })
+
+        ws.addEventListener("open", () => {});
+        ws.addEventListener("close", console.info);
+        ws.addEventListener("message", event => {
+            const message = document.createElement("li");
+            message.textContent = event.data;
+            messages.appendChild(message);
+        });
+        ws.addEventListener("error", console.error);
+    </script>
+</body>
+</html>
